@@ -1,0 +1,191 @@
+import ccxt # Import ccxt to interact with Binance API
+import time # Used for sleeping between API requests
+import pandas as pd # Used for handling data
+
+from config import API_KEY, API_SECRET # Load API keys
+
+# Initialize Binance API - From config.py file
+exchange = ccxt.binance({
+    'apiKey': API_KEY,
+    'secret': API_SECRET,    
+    'options': {'defaultType': 'spot'}
+})
+exchange.set_sandbox_mode(True)   
+
+symbol = 'BTC/USDT' # Trading pair
+timeframe = '1m' # Timeframe for price data (1-minute candles)
+
+hasStarted = False
+
+# Function to Fetch OHLCV (Open-High-Low-Close-Volume) Data
+def fetch_data(symbol, timeframe='1m', limit=100):
+    """Fetches historical market data from Binance"""
+    candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    return df
+
+class MarkovChain:
+    def __init__(self, states, transition_matrix):
+        self.states = states
+        self.transition_matrix = transition_matrix
+        self.current_state = random.choice(states)  # Start in a random state
+
+    def next_state(self):
+        """Transitions to the next state based on the transition matrix."""
+        probabilities = self.transition_matrix[self.states.index(self.current_state)]
+        self.current_state = np.random.choice(self.states, p=probabilities)
+        return self.current_state
+
+# Define the states
+states = ["ML Assessment and Rescore", "Markov Chain 2", "ML Validation", "Random Forest", "RNN Strategy Selection", "Execution"]
+
+# Define the transition matrix (probabilities of moving from one state to another)
+#  Rows: Current state
+#  Columns: Possible next states
+#  Values: Probability of transitioning
+transition_matrix = np.array([
+    [0.0, 0.7, 0.3, 0.0, 0.0, 0.0],  # ML Assessment can go to Markov Chain or Validation
+    [0.0, 0.0, 0.0, 0.7, 0.3, 0.0],  # Markov Chain can go to RF or RNN
+    [0.0, 0.0, 0.0, 0.7, 0.3, 0.0],  # Validation can go to RF or RNN
+    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],  # RF always goes to Execution
+    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],  # RNN always goes to Execution
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]   # Execution is the end
+])
+
+markov_chain = MarkovChain(states, transition_matrix)
+
+def ml_assessment_and_rescore(data):
+    """Dummy function.  In reality, would evaluate a model, and potentially retrain/adjust."""
+    print("Performing ML Assessment and Rescore (Dummy)...")
+    return data + 0.1  # Just adding a bit to the data
+
+def ml_validation(data, labels):
+    """Dummy function. In reality, would split data and validate a model."""
+    print("Performing ML Validation (Dummy)...")
+    X_train, X_test, y_train, y_test = train_test_split(data, labels, test_size=0.2, random_state=42)
+    return X_train, X_test, y_train, y_test
+
+def train_random_forest(X_train, y_train, problem_type="classification"):
+    """Trains a Random Forest model (Classifier or Regressor based on problem_type)."""
+    print("Training Random Forest (Dummy)...")
+    if problem_type == "classification":
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
+    else:  # Regression
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    return model
+
+def rnn_strategy_selection(data, look_back=10):
+    """Trains an RNN to select a trading strategy (Dummy)."""
+    print("Training RNN for Strategy Selection (Dummy)...")
+    # Prepare data for LSTM
+    X, y = [], []
+    for i in range(len(data) - look_back - 1):
+        X.append(data[i:(i + look_back)])
+        y.append(data[i + look_back])
+    X, y = np.array(X), np.array(y)
+    X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+
+    model = Sequential()
+    model.add(LSTM(50, input_shape=(look_back, 1)))
+    model.add(Dense(1))
+    model.compile(loss='mean_squared_error', optimizer='adam')
+    model.fit(X, y, epochs=1, batch_size=1, verbose=0)  # Keep epochs low for dummy
+
+    return model, look_back # Return the trained model and look_back value
+
+def execute_strategy(model, data, strategy_type="RF", look_back = 10):
+    """Executes a trading strategy based on the selected model (Dummy)."""
+    print(f"Executing Strategy ({strategy_type})...")
+    if strategy_type == "RF":
+        # Assuming data is properly prepared for RF
+        prediction = model.predict(data)
+        # In real scenario, 'data' would be prepared input features
+        # Decision logic based on the prediction
+        if isinstance(model, RandomForestClassifier):
+            print("Random Forest Classification Result", prediction)
+            decision = "Buy" if prediction[0] == 1 else "Sell" #assuming classes are 0 and 1
+        else:
+            print("Random Forest Regression Result", prediction[0])
+            decision = "Buy" if prediction[0] > 0.5 else "Sell" #Assuming a prediction scale where .5 is buy/sell threshold
+    elif strategy_type == "RNN":
+        # Prepare data for LSTM (similar to training, but for a single prediction)
+        last_sequence = data[-look_back:]  # Using the most recent 'look_back' values
+
+        # Reshape the last_sequence to fit the LSTM input shape
+        last_sequence = np.reshape(last_sequence, (1, look_back, 1))  # (samples, time steps, features)
+
+        # Make a prediction using the trained LSTM model
+        prediction = model.predict(last_sequence)
+
+        print("RNN Prediction:", prediction[0][0])
+        decision = "Buy" if prediction[0][0] > 0.5 else "Sell" # assuming a prediction scale where .5 is buy/sell threshold
+
+    else:
+        print("Error: Invalid strategy type.")
+        return
+
+    print(f"Decision: {decision}")
+    return decision
+
+# -----------------------------------------------------------------------------
+# 3. Main Execution Loop
+# -----------------------------------------------------------------------------
+
+# Example Data (Replace with your actual data!)
+initial_data = np.random.rand(100, 5)  # 100 samples, 5 features
+labels = np.random.randint(0, 2, 100)  # Binary labels for classification example
+
+current_data = initial_data
+current_state = markov_chain.current_state
+
+print(f"Starting State: {current_state}")
+
+while current_state != "Execution":
+    if current_state == "ML Assessment and Rescore":
+        current_data = ml_assessment_and_rescore(current_data)
+    elif current_state == "Markov Chain 2":
+        # No direct action on the data, it's more about controlling flow
+        print("Transitioning via Markov Chain Logic...")
+
+    elif current_state == "ML Validation":
+         X_train, X_test, y_train, y_test = ml_validation(current_data, labels)  # Use the data and labels
+         current_data = X_test #Sets current data to x_test for RF
+         labels = y_test #sets current labels to y_test for RF
+
+
+    elif current_state == "Random Forest":
+        # Decide if it's a classification or regression problem (based on 'labels')
+        problem_type = "classification" if len(np.unique(labels)) <= 10 else "regression" #Basic way to determine problem type
+
+        model = train_random_forest(X_train, y_train, problem_type) #Use train data
+
+        # Make predictions (using X_test in this example, which is what is stored as current_data)
+        if problem_type == "classification":
+            predictions = model.predict(current_data)
+            accuracy = accuracy_score(labels, predictions) #Use y_test/labels
+            print(f"Random Forest Accuracy: {accuracy}")
+        else:
+            predictions = model.predict(current_data)
+            mse = mean_squared_error(labels, predictions)
+            print(f"Random Forest Mean Squared Error: {mse}")
+
+        strategy = "RF" #Set strategy type for RF execution
+
+    elif current_state == "RNN Strategy Selection":
+        rnn_model, look_back_value = rnn_strategy_selection(current_data[:, 0]) # Use only one feature for simplicity
+        strategy = "RNN" #Set strategy type for RNN execution
+
+    elif current_state == "Execution":
+        # Pass model and data to the execution function
+        if strategy == "RF":
+            execute_strategy(model, current_data, "RF") # use stored model and current_data x_test
+        elif strategy == "RNN":
+            execute_strategy(rnn_model, current_data[:,0], "RNN", look_back_value) #Need RNN model and historical data
+
+    # Transition to the next state
+    current_state = markov_chain.next_state()
+    print(f"Next State: {current_state}")
+
+print("Finished.")
+
